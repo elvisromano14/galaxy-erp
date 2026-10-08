@@ -21,3 +21,6 @@ def a_caracas(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=CARACAS_TZ)
     return dt.astimezone(CARACAS_TZ)
+
+
+hoy_ccs = hoy

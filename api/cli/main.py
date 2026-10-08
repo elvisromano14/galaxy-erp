@@ -297,4 +297,3 @@ def salud() -> None:
 
 if __name__ == "__main__":
     app()
-

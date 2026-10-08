@@ -27,25 +27,55 @@ def _build_tenant_owner_url(tenant: Tenant) -> str:
     return f"{partes[0]}/{tenant.db_name}"
 
 
-def _migrar_tenant(tenant: Tenant) -> str | None:
+async def _migrar_tenant(tenant: Tenant) -> str | None:
     """Ejecuta upgrade head para un tenant. Devuelve la revisión head o None si falló."""
     tenant_url = _build_tenant_owner_url(tenant)
     alembic_cfg = Config(str(_ALEMBIC_INI))
     alembic_cfg.set_main_option("script_location", str(_ALEMBIC_INI.parent / "migrations"))
     alembic_cfg.set_main_option("sqlalchemy.url", tenant_url)
-    command.upgrade(alembic_cfg, "head")
-    # Obtener revisión aplicada
+
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
+
     from sqlalchemy import text
 
-    async def _get_rev() -> str | None:
-        engine = create_async_engine(tenant_url)
-        async with engine.connect() as conn:
-            res = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
-            row = res.fetchone()
-        await engine.dispose()
-        return str(row[0]) if row else None
+    engine = create_async_engine(tenant_url)
+    async with engine.begin() as conn:
+        res = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+        row = res.fetchone()
 
-    return asyncio.run(_get_rev())
+        # Reaplicar permisos a erp_app para nuevas tablas
+        await conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app') THEN
+                        GRANT USAGE ON SCHEMA public TO erp_app;
+                        GRANT SELECT, INSERT, UPDATE, DELETE
+                            ON ALL TABLES IN SCHEMA public TO erp_app;
+                        GRANT USAGE, SELECT, UPDATE
+                            ON ALL SEQUENCES IN SCHEMA public TO erp_app;
+                        ALTER DEFAULT PRIVILEGES IN SCHEMA public
+                            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO erp_app;
+                        ALTER DEFAULT PRIVILEGES IN SCHEMA public
+                            GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO erp_app;
+
+                        -- Tablas append-only
+                        IF EXISTS (SELECT 1 FROM information_schema.tables
+                                   WHERE table_name = 'audit_log') THEN
+                            REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM erp_app;
+                        END IF;
+                        IF EXISTS (SELECT 1 FROM information_schema.tables
+                                   WHERE table_name = 'stock_movement') THEN
+                            REVOKE UPDATE, DELETE, TRUNCATE ON stock_movement FROM erp_app;
+                        END IF;
+                    END IF;
+                END $$;
+                """
+            )
+        )
+    await engine.dispose()
+    return str(row[0]) if row else None
 
 
 async def migrar_todos(solo_slug: str | None = None) -> None:
@@ -86,7 +116,7 @@ async def migrar_todos(solo_slug: str | None = None) -> None:
             )
 
         try:
-            nueva_rev = _migrar_tenant(tenant)
+            nueva_rev = await _migrar_tenant(tenant)
             async with control_session() as session:
                 await finalizar_job(
                     session,

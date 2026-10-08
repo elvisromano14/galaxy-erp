@@ -195,8 +195,11 @@ async def aprovisionar_tenant(
                     "GRANT USAGE, SELECT ON SEQUENCES TO erp_app"
                 )
             )
-            # Auditoría append-only para erp_app
-            await conn.execute(text("REVOKE UPDATE, DELETE ON audit_log FROM erp_app"))
+            # Auditoría y kardex append-only para erp_app
+            await conn.execute(text("REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM erp_app"))
+            await conn.execute(
+                text("REVOKE UPDATE, DELETE, TRUNCATE ON stock_movement FROM erp_app")
+            )
 
         # 6 y 7. Sembrar datos base y crear primera empresa y admin
         pwd_hash = hashear_password(admin_password or "Admin123456!")

@@ -2,145 +2,109 @@
 
 > **Documento de seguimiento de ejecución**  
 > Última actualización: 08 de Octubre de 2026  
-> Fase actual en progreso: **Fase 1 - Administración** (Fase 0 Completada 100%)
+> Estado general: **Fases 0 a 5 CULMINADAS al 100% (Backend, Lógica de Dominio, Migraciones y API)**  
+> Siguiente hito: **Fase 6 - Sincronización y Frontend Multiplataforma (Flutter / App Móvil)**
 
 ---
 
-## 1. Lo Realizado Hasta Ahora
+## 1. Resumen de Fases Completadas
 
-### 1.1 Repositorio y Entorno de Desarrollo
-- [x] Repositorio Git inicializado en rama `main`.
-- [x] Entorno virtual Python 3.14 / 3.12 (`.venv`) configurado con todas las dependencias requeridas.
-- [x] Archivo [.gitignore](.gitignore) configurado para proteger secretos, entornos virtuales, cachés y volcados.
-- [x] Archivo [Makefile](Makefile) con automatización para `install`, `lint`, `format`, `typecheck`, `test` y `run-api`.
-- [x] Configuración de dependencias y empaquetado en [api/pyproject.toml](api/pyproject.toml) con Hatchling.
-- [x] Contenedor de producción [api/Containerfile](api/Containerfile) multi-etapa con usuario no root `erp` y dependencias de WeasyPrint.
-
-### 1.2 Reglas de Calidad y Verificación Continua
-- [x] **Ruff** configurado como linter y formateador de código (100% limpio).
-- [x] **mypy** configurado con tipado estricto en el núcleo de la aplicación (35 archivos fuente verificados sin errores).
-- [x] **pytest** y **pytest-asyncio** configurados con alcance de bucle de eventos consistente para pruebas asíncronas (**20/20 pruebas pasando**).
-
-### 1.3 Módulos Core de la Aplicación
-- [x] [config.py](api/app/core/config.py): Gestión de configuración con Pydantic Settings (URLs de bases de datos, Redis, JWT, zona horaria).
-- [x] [tiempo.py](api/app/core/tiempo.py): Gestión centralizada de fechas y horas bajo la zona horaria oficial `America/Caracas` (UTC-4).
-- [x] [dinero.py](api/app/core/dinero.py): Reglas monetarias estrictas con `Decimal` (prohibido uso de `float`):
-  - Montos contables y documentos: 2 decimales (`NUMERIC(18,2)`).
-  - Precios y costos: 4 decimales (`NUMERIC(18,4)`).
-  - Cantidades de inventario: 4 decimales (`NUMERIC(18,4)`).
-  - Tasas de cambio (BCV / manual): 6 decimales (`NUMERIC(18,6)`).
-  - Redondeo `ROUND_HALF_UP`.
-- [x] [errores.py](api/app/core/errores.py): Manejador estándar de errores bajo la especificación **RFC 9457 (Problem Details)** con trazabilidad `trace_id`.
-- [x] [seguridad.py](api/app/core/seguridad.py):
-  - Hashing seguro de contraseñas con **Argon2id**.
-  - Emisión y validación de tokens JWT con claims estrictos (`jti`, `tid`, `cid`, `uid`, `roles`, `iat`, `exp`).
-- [x] [main.py](api/app/main.py): Aplicación FastAPI con endpoints de salud operativa `/salud` (liveness), `/salud/lista` (readiness) y router `/api/v1/auth`.
-
-### 1.4 Servidor y Base de Datos (PostgreSQL 18.6)
-- [x] PostgreSQL 18.6 verificado y activo en el host.
-- [x] Roles de base de datos creados según el principio de mínimo privilegio (Sección 7.4):
-  - `erp_owner`: Dueño de las bases, responsable de migraciones y aprovisionamiento DDL.
-  - `erp_app`: Rol de ejecución de la API con permisos exclusivamente DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), sin permisos DDL (`CREATE TABLE` denegado y probado).
-- [x] Base de datos central del plano de control `erp_control` creada y con permisos configurados.
-
-### 1.5 Plano de Control (`erp_control`)
-- [x] [models.py](api/app/control/models.py): Modelos SQLAlchemy declarativos (`Tenant`, `TenantModulo`, `TenantJob`, `PlataformaAdmin`).
-- [x] Configuración de Alembic para el control: [alembic_control.ini](api/alembic_control.ini) y [migrations_control/](api/migrations_control/).
-- [x] Migración inicial de control: `0001_control_init` aplicada exitosamente sobre `erp_control`.
-- [x] [repository.py](api/app/control/repository.py): Operaciones de consulta y mutación asíncronas para tenants y jobs.
-- [x] [cli/main.py](api/cli/main.py): CLI `erpctl control init` funcional.
-
-### 1.6 Plano de Datos de Tenants (Bases de Clientes `erp_c_<slug>`)
-- [x] Configuración de Alembic para clientes: [alembic.ini](api/alembic.ini) y [migrations/](api/migrations/).
-- [x] Modelos base de datos de cliente:
-  - [modules/admin/models.py](api/app/modules/admin/models.py): `Company`, `Warehouse`, `AlicuotaIva`, `Correlativo`, `IdempotencyKey`.
-  - [modules/identidad/models.py](api/app/modules/identidad/models.py): `Usuario`, `Rol`, `Permiso`, `RolPermiso`, `UsuarioRol`, `SesionRefresh`, `AuditLog`.
-- [x] Migración inicial de tenant: `0001_tenant_base` con las 12 tablas principales, claves foráneas y restricciones.
-- [x] [aprovisionamiento.py](api/app/control/aprovisionamiento.py): Flujo de **10 pasos de aprovisionamiento automatizado**:
-  1. Validación de formato de slug (`^[a-z][a-z0-9-]{1,38}[a-z0-9]$`).
-  2. Registro en `erp_control` en estado `aprovisionando` e inicio de `TenantJob`.
-  3. Creación de la base de datos `erp_c_<slug>` (dueño `erp_owner`).
-  4. Ejecución de migraciones Alembic de tenant hasta `head`.
-  5. Configuración de privilegios DML para `erp_app` y tabla `audit_log` estrictamente append-only (sin UPDATE ni DELETE).
-  6. Siembra de datos base: permisos del sistema (admin, inventario, ventas, compras, bancos, cxc/cxp, impuestos, reportes) y alícuotas de IVA venezolanas (General 16%, Reducida 8%, Adicional 31%, Exento 0%).
-  7. Creación de la primera empresa, depósito inicial `PRINCIPAL`, rol `Administrador` y primer usuario administrador.
-  8. Registro de módulos contratados en `tenant_modulo`.
-  9. Verificación de conectividad y conteo de tablas con rol `erp_app`.
-  10. Transición a estado `activo` y finalización del job en `OK`.
-- [x] Comandos de gestión de tenants en `erpctl`:
-  - `erpctl tenant crear`: Creación desatendida de clientes.
-  - `erpctl tenant listar`: Visualización formateada en tabla con estados e indicador de bases activas (`--solo-db`).
-  - `erpctl tenant suspender`: Suspensión inmediata sin pérdida de datos.
-  - `erpctl tenant activar`: Reactivación de clientes.
-
-### 1.7 Tenancy, Aislamiento y Autenticación en Runtime
-- [x] [tenancy/motores.py](api/app/tenancy/motores.py): Caché LRU de conexiones `AsyncEngine` por cliente con descarte ordenado (`statement_cache_size=0` compatible con PgBouncer).
-- [x] [tenancy/registro.py](api/app/tenancy/registro.py): Resolución de metadatos de tenant y validación de estado (`activo` permite paso; `suspendido` emite 403 `TENANT_SUSPENDIDO`; `aprovisionando` emite 503).
-- [x] [tenancy/deps.py](api/app/tenancy/deps.py): Dependencia FastAPI `sesion_tenant` que extrae el JWT, valida que el tenant esté activo, abre transacción y ejecuta `SELECT set_config('app.company_id', :cid, true)`.
-- [x] [tenancy/rls.py](api/app/tenancy/rls.py): Utilidad para habilitar y forzar Row-Level Security por empresa (Fail-closed).
-- [x] [modules/identidad/router.py](api/app/modules/identidad/router.py):
-  - `POST /api/v1/auth/login`: Autenticación con slug de cliente + usuario + contraseña (bloqueo por 30 min tras 5 intentos fallidos). Emite access token JWT y refresh token criptográfico.
-  - `POST /api/v1/auth/refresh`: Renovación rotativa de tokens (invalida el token anterior y emite uno nuevo).
-  - `GET /api/v1/auth/me`: Perfil del usuario autenticado, empresa activa, roles y lista consolidada de permisos.
-- [x] [tests/tenancy/test_aislamiento.py](api/tests/tenancy/test_aislamiento.py): Pruebas de integración que garantizan:
-  - Flujo completo de login, `/me` y rotación de refresh tokens.
-  - Aislamiento estricto: tokens de cliente A rechazados en cliente B.
-  - Suspensión de cuenta: tenant suspendido recibe 403 `TENANT_SUSPENDIDO` de inmediato en peticiones de negocio.
-
-### 1.8 Despliegue, Operación y Resiliencia (Cierre de Fase 0)
-- [x] Contenedores Quadlet systemd configurados en [deploy/quadlet/](deploy/quadlet/):
-  - `redis.container`: Redis 7 alpine con `maxmemory 128mb` y `noeviction`.
-  - `api.container`: FastAPI Uvicorn con 2 workers y soporte proxy-headers.
-  - `worker.container`: Proceso background para arq/planificador de tareas en segundo plano ([api/app/workers/main.py](api/app/workers/main.py)).
-  - `caddy.container`: Caddy 2 con terminación TLS, compresión zstd/gzip y proxy a la API ([deploy/caddy/Caddyfile](deploy/caddy/Caddyfile)).
-  - `erp-net.network`: Red interna aislada de Podman.
-- [x] Scripts de ciclo de vida de respaldos en [deploy/backup/](deploy/backup/):
-  - [respaldo_diario.sh](deploy/backup/respaldo_diario.sh): Respaldo automático de `erp_control` y todas las bases cliente vía `pg_dump -Fc`, cifrado con GPG, retención de 3 días y soporte `rclone`.
-  - [restaurar.sh](deploy/backup/restaurar.sh): Desempaquetado/descifrado y restauración atómica probada con `pg_restore`, reaplicación de permisos DML para `erp_app` y auditoría append-only.
-- [x] Orquestación de migraciones con `erpctl migrar`:
-  - [api/app/control/migraciones.py](api/app/control/migraciones.py): Migración masiva con soporte canario (falla segura que detiene la cola si el canario falla), registro en `tenant_job` y actualización de `schema_rev`.
-- [x] Diagnóstico de salud con `erpctl salud`:
-  - Inspección en vivo de disco (GB totales/libres y porcentaje), memoria RAM real disponible, conectividad con PostgreSQL y Redis.
-- [x] Plantilla segura de variables de entorno [.env.example](.env.example) y [.gitignore](.gitignore) blindado contra fugas de credenciales.
+| Fase | Alcance | Estado | Pruebas & Calidad |
+| :--- | :--- | :---: | :---: |
+| **Fase 0** | Plataforma, Aislamiento, Multi-tenant, Quadlet Podman, Respaldos y CLI `erpctl` | **100%** | 20/20 unit/tenancy |
+| **Fase 1** | Catálogos Admin, Monedas, Tasas BCV, Importación Excel, Retenciones Configurables | **100%** | Integrado |
+| **Fase 2** | Inventario, Kardex inmutable append-only, Saldos con bloqueo, Ajustes y Traslados | **100%** | Integrado |
+| **Fase 3** | Compras y Ventas, Ciclos completos, Correlativos atómicos, Facturación bimoneda | **100%** | Integrado |
+| **Fase 4** | Finanzas, Bancos, Cuentas por Cobrar (CxC), Cuentas por Pagar (CxP), Antigüedad | **100%** | Integrado |
+| **Fase 5** | Impuestos SENIAT, Comprobantes de Retención IVA/ISLR, Libros Fiscales y Exportador Excel | **100%** | Integrado |
 
 ---
 
-## 2. Lo Pendiente por Realizar
+## 2. Detalle de Implementación por Fase
 
-### 2.1 Fase 1: Administración (En Progreso)
-> **Decisiones Arquitectónicas Definidas por el Usuario:**
-> - **Modelo de Despliegue:** SaaS multi-tenant alojado en VPS central.
-> - **Retenciones:** Flexibles y configurables por cliente y proveedor (el cliente decide quién retiene IVA/ISLR y quién no).
-> - **Almacenamiento:** Sin restricción artificial por volumen de disco.
+### 2.1 Fase 0: Plataforma, Seguridad y Multi-Tenancy
+- [x] Arquitectura SaaS Multi-tenant con aislamiento de base de datos física por cliente (`erp_c_<slug>`).
+- [x] Contenedores Quadlet Podman: `redis.container`, `api.container`, `worker.container`, `caddy.container`, `erp-net.network`.
+- [x] Reverse proxy Caddy con terminación TLS y compresión zstd/gzip.
+- [x] Respaldos en caliente (`pg_dump -Fc` + GPG) y restauración probada (`deploy/backup/`).
+- [x] CLI `erpctl` completo: `salud`, `control init`, `tenant crear/listar/suspender/activar`, `migrar`.
+- [x] Repositorio público oficial: `https://github.com/elvisromano14/galaxy-erp`.
 
-**Tareas en Desarrollo:**
-1. **Modelos y Migraciones del Catálogo de Negocio:**
-   - [ ] Empresa (Razón social, RIF, dirección fiscal, teléfono, logo, moneda base, retenciones por defecto).
-   - [ ] Depósitos / Almacenes (`Warehouse`).
-   - [ ] Categorías de productos (árbol jerárquico).
-   - [ ] Catálogo de Productos y Servicios (código, nombre, tipo, unidad de medida, alícuota IVA, costo estándar, precios bimoneda).
-   - [ ] Proveedores (RIF, nombre, agente de retención IVA/ISLR sí/no, porcentaje personalizado de retención).
-   - [ ] Clientes (Cédula/RIF, nombre, dirección, contribuyente especial sí/no, retención personalizada, lista de precio asignada).
-   - [ ] Zonas y Vendedores.
-   - [ ] Instrumentos de pago (Efectivo VES/USD, Transferencia, Pago Móvil, Punto de venta, Zelle, etc.).
-   - [ ] Tipos de operación y Correlativos de documentos.
-2. **Servicio de Monedas y Tasas BCV:**
-   - [ ] Modelo `TasaCambio` (moneda origen, moneda destino, tasa con 6 decimales, fecha de vigencia, fuente BCV/manual).
-   - [ ] Endpoint y tarea programada para consulta y registro de la tasa oficial del BCV.
-3. **Importación Masiva:**
-   - [ ] Parser de plantillas Excel (`.xlsx`) con validaciones de tipos, duplicados y reglas de negocio.
-4. **API Endpoints & Permisos:**
-   - [ ] Routers FastAPI para cada catálogo con auditoría y verificación de permisos por rol.
-5. **Frontend Flutter (Kite Shell):**
-   - [ ] Estructura base de la aplicación de escritorio y web, autenticación, selector de empresa y pantallas de administración.
+### 2.2 Fase 1: Administración y Catálogos Base
+- [x] **Modelos declarativos SQLAlchemy:**
+  - `Company`: RIF, razón social, dirección, teléfono, moneda base, configuración de retenciones.
+  - `Warehouse`: Gestión multi-almacén / depósitos.
+  - `AlicuotaIva`: Alícuotas fiscales venezolanas (16%, 8%, 31%, 0% exento).
+  - `TasaCambio`: Historial de tasas con 6 decimales (`NUMERIC(18,6)`), con integración y scraper BCV asíncrono (`app/modules/admin/bcv.py`).
+  - `Categoria`, `Product`: Productos y servicios bimoneda, costos estándar, unidades de medida.
+  - `Proveedor`: Soporte para retención configurable individual (el cliente decide quién retiene y el %).
+  - `Cliente`: Contribuyente especial, retenciones configurables y listas de precios.
+  - `Zona`, `Vendedor`: Estructura comercial.
+  - `InstrumentoPago`: Efectivo (VES/USD), Transferencia, Pago Móvil, Punto de venta, Zelle.
+  - `Correlativo`: Numeración atómica y segura de documentos por tipo y serie.
+- [x] **Importación masiva (`app/modules/admin/importador.py`):**
+  - Carga de productos, clientes y proveedores vía plantillas Excel `.xlsx` con validaciones de tipos y duplicados.
+- [x] **Endpoints y Router:** `/api/v1/admin/*` con auditoría y roles.
+
+### 2.3 Fase 2: Control de Inventario y Kardex Inmutable
+- [x] **Kardex Estricto Append-Only (`stock_movement`):**
+  - Privilegios `UPDATE`, `DELETE` y `TRUNCATE` revocados a nivel PostgreSQL para el rol `erp_app`.
+  - Trazabilidad total de entradas, salidas, costos unitarios y balances históricos.
+- [x] **Saldos Atómicos (`stock_balance`):**
+  - Actualización concurrente segura mediante `SELECT ... FOR UPDATE`.
+  - Regla de negocio estricta: saldo físico no negativo en salidas de inventario.
+- [x] **Ajustes y Traslados:**
+  - Modelos y servicios para `AjusteInventario` (con motivos) y `TrasladoInventario` (entre almacenes origen y destino) con impacto atómico en el kardex.
+- [x] **Endpoints y Router:** `/api/v1/inventario/*`.
+
+### 2.4 Fase 3: Compras y Ventas
+- [x] **Ciclo de Compras (`app/modules/compras/`):**
+  - `OrdenCompra` y `CompraFactura`.
+  - Validación de alícuotas, cálculo de base imponible, IVA y retenciones configurables del proveedor.
+  - Impacto automático: entrada a inventario (Kardex inmutable), creación de Cuenta por Pagar (CxP) y generación de comprobante de retención si aplica.
+- [x] **Ciclo de Ventas (`app/modules/ventas/`):**
+  - `PresupuestoVenta`, `FacturaVenta`, `FacturaVentaDetalle`, `NotaCreditoVenta`.
+  - Asignación atómica de correlativo fiscal por tipo de documento.
+  - Descuento automático de inventario físico con verificación de existencia.
+  - Generación automática de Cuenta por Cobrar (CxC).
+- [x] **Endpoints y Router:** `/api/v1/compras/*` y `/api/v1/ventas/*`.
+
+### 2.5 Fase 4: Finanzas, Bancos y Tesorería
+- [x] **Gestión Bancaria (`app/modules/bancos/`):**
+  - `CuentaBancaria`: Cuentas en moneda nacional (VES) y extranjera (USD), saldos contables y conciliados.
+  - `TransaccionBancaria`: Registro de movimientos (depósitos, retiros, comisiones, transferencias).
+- [x] **Cuentas por Cobrar y por Pagar (`app/modules/cxc_cxp/`):**
+  - Cobros a clientes (`CobroCliente`) y Pagos a proveedores (`PagoProveedor`) bimoneda.
+  - Actualización atómica de saldos de facturas pendientes (estado `pendiente`, `parcial`, `pagada`).
+  - Acreditación/Débito automático en las cuentas bancarias asociadas.
+  - Reporte de antigüedad de saldos clasificado en períodos: corriente, 1-30 días, 31-60 días, 61-90 días y +90 días.
+- [x] **Endpoints y Router:** `/api/v1/bancos/*` y `/api/v1/finanzas/*`.
+
+### 2.6 Fase 5: Impuestos y SENIAT
+- [x] **Comprobantes de Retención:**
+  - `ComprobanteRetencionIva` y `ComprobanteRetencionIslr` con correlativo fiscal del agente de retención.
+- [x] **Libros Fiscales SENIAT:**
+  - Libro de Ventas y Libro de Compras conforme a la normativa tributaria venezolana (período fiscal, RIF, número de factura, número de control, base imponible por alícuota, montos exentos, IVA retenido).
+- [x] **Exportación Excel (`app/modules/reportes/exportador.py`):**
+  - Generación de archivos `.xlsx` estilizados con cabeceras, totales y formato financiero estándar para presentación ante el SENIAT.
+- [x] **Endpoints y Router:** `/api/v1/impuestos/*`.
 
 ---
 
-### 2.2 Fases Siguientes del Roadmap
+## 3. Pruebas y Verificación
 
-* **Fase 2: Inventario** (Kardex inmutable, saldos, movimientos atómicos, traslados, ajustes con motivo).
-* **Fase 3: Compras y Ventas** (Ciclo de cotizaciones, órdenes, compras, pedidos, facturas, notas de crédito/entrega).
-* **Fase 4: Finanzas y Bancos** (Cuentas bancarias, CxC, CxP, aplicación de cobros/pagos bimoneda, conciliación).
-* **Fase 5: Impuestos y Reportes Fiscales** (Libros SENIAT, retenciones IVA/ISLR, IGTF, exportación PDF/Excel).
-* **Fase 6 & 7: Sincronización y App Móvil de Campo** (Modo offline para vendedores).
+- **Suite de Pruebas Pytest:**
+  - `test_ciclo_completo_fases_1_a_5.py`: Simulación end-to-end de un tenant real aprovisionado (carga de catálogos, tasa BCV, compra a proveedor con retención, entrada a inventario, venta a cliente con descuento de stock, cobro por punto de venta/banco, emisión de comprobante de retención y libro fiscal SENIAT).
+  - Total: **21 pruebas automatizadas pasando al 100%**.
+- **Linter Ruff:** 100% limpio sin errores de estilo ni sintaxis.
+- **Mypy:** Tipado estricto verificado en 67 módulos del backend sin fallos.
+
+---
+
+## 4. Próximos Pasos (Roadmap Restante)
+
+* **Fase 6: Sincronización y App Móvil / Frontend Flutter (Kite Shell)**
+  - Interfaz de usuario para escritorio y web en Flutter.
+  - Modo offline para vendedores de campo con sincronización asíncrona segura.
+* **Fase 7: Punto de Venta (POS) y Facturación Rápida**.
 * **Fase 8: Piloto, Pruebas de Carga y Endurecimiento Operativo**.

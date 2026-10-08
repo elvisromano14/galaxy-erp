@@ -3,7 +3,14 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.errores import GalaxyERPException
+from app.modules.admin.router import router as admin_router
+from app.modules.bancos.router import router as bancos_router
+from app.modules.compras.router import router as compras_router
+from app.modules.cxc_cxp.router import router as cxc_cxp_router
 from app.modules.identidad.router import router as auth_router
+from app.modules.impuestos.router import router as impuestos_router
+from app.modules.inventario.router import router as inventario_router
+from app.modules.ventas.router import router as ventas_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -13,6 +20,13 @@ app = FastAPI(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(admin_router)
+app.include_router(inventario_router)
+app.include_router(compras_router)
+app.include_router(ventas_router)
+app.include_router(bancos_router)
+app.include_router(cxc_cxp_router)
+app.include_router(impuestos_router)
 
 
 @app.exception_handler(GalaxyERPException)

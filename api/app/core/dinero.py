@@ -32,3 +32,10 @@ def redondear_cantidad(valor: Decimal) -> Decimal:
 def redondear_tasa(valor: Decimal) -> Decimal:
     """Redondea a 6 decimales para tasas de cambio."""
     return valor.quantize(DECIMALES_TASA, rounding=ROUND_HALF_UP)
+
+
+# Alias por compatibilidad
+cuantizar_monto = redondear_monto
+cuantizar_precio = redondear_precio
+cuantizar_cantidad = redondear_cantidad
+cuantizar_tasa = redondear_tasa

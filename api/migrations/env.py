@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.db import Base
 from app.modules.admin.models import *  # noqa: F403, F401
+from app.modules.bancos.models import *  # noqa: F403, F401
+from app.modules.compras.models import *  # noqa: F403, F401
+from app.modules.cxc_cxp.models import *  # noqa: F403, F401
 from app.modules.identidad.models import *  # noqa: F403, F401
+from app.modules.impuestos.models import *  # noqa: F403, F401
+from app.modules.inventario.models import *  # noqa: F403, F401
+from app.modules.ventas.models import *  # noqa: F403, F401
 
 config = context.config
 

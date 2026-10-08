@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.errores import GalaxyERPException
+from app.modules.identidad.router import router as auth_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -10,6 +11,8 @@ app = FastAPI(
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url=None,
 )
+
+app.include_router(auth_router, prefix="/api/v1")
 
 
 @app.exception_handler(GalaxyERPException)

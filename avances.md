@@ -2,7 +2,7 @@
 
 > **Documento de seguimiento de ejecución**  
 > Última actualización: 08 de Octubre de 2026  
-> Fase actual en progreso: **Fase 0 - Plataforma y Arquitectura Base**
+> Fase actual en progreso: **Fase 0 - Plataforma y Arquitectura Base** (Avanzada)
 
 ---
 
@@ -17,9 +17,9 @@
 - [x] Contenedor de producción [api/Containerfile](api/Containerfile) multi-etapa con usuario no root `erp` y dependencias de WeasyPrint.
 
 ### 1.2 Reglas de Calidad y Verificación Continua
-- [x] **Ruff** configurado como linter y formateador de código.
-- [x] **mypy** configurado con tipado estricto en el núcleo de la aplicación.
-- [x] **pytest** y **pytest-asyncio** configurados con alcance de bucle de eventos consistente para pruebas asíncronas.
+- [x] **Ruff** configurado como linter y formateador de código (100% limpio).
+- [x] **mypy** configurado con tipado estricto en el núcleo de la aplicación (35 archivos fuente verificados sin errores).
+- [x] **pytest** y **pytest-asyncio** configurados con alcance de bucle de eventos consistente para pruebas asíncronas (**20/20 pruebas pasando**).
 
 ### 1.3 Módulos Core de la Aplicación
 - [x] [config.py](api/app/core/config.py): Gestión de configuración con Pydantic Settings (URLs de bases de datos, Redis, JWT, zona horaria).
@@ -31,7 +31,10 @@
   - Tasas de cambio (BCV / manual): 6 decimales (`NUMERIC(18,6)`).
   - Redondeo `ROUND_HALF_UP`.
 - [x] [errores.py](api/app/core/errores.py): Manejador estándar de errores bajo la especificación **RFC 9457 (Problem Details)** con trazabilidad `trace_id`.
-- [x] [main.py](api/app/main.py): Aplicación FastAPI con endpoints de salud operativa `/salud` (liveness) y `/salud/lista` (readiness).
+- [x] [seguridad.py](api/app/core/seguridad.py):
+  - Hashing seguro de contraseñas con **Argon2id**.
+  - Emisión y validación de tokens JWT con claims estrictos (`jti`, `tid`, `cid`, `uid`, `roles`, `iat`, `exp`).
+- [x] [main.py](api/app/main.py): Aplicación FastAPI con endpoints de salud operativa `/salud` (liveness), `/salud/lista` (readiness) y router `/api/v1/auth`.
 
 ### 1.4 Servidor y Base de Datos (PostgreSQL 18.6)
 - [x] PostgreSQL 18.6 verificado y activo en el host.
@@ -41,59 +44,73 @@
 - [x] Base de datos central del plano de control `erp_control` creada y con permisos configurados.
 
 ### 1.5 Plano de Control (`erp_control`)
-- [x] [models.py](api/app/control/models.py): Modelos SQLAlchemy declarativos:
-  - `Tenant`: Registro de clientes con ID `uuidv7`, slug validado por regex, conexión a base `erp_c_<slug>`, estados del ciclo de vida (`aprovisionando`, `activo`, `suspendido`, `archivado`, `fallido`) y revisión de esquema.
-  - `TenantModulo`: Módulos licenciados por cliente y fechas de vencimiento.
-  - `TenantJob`: Histórico auditable de trabajos de aprovisionamiento, migración y mantenimiento.
-  - `PlataformaAdmin`: Administradores del plano de control global.
+- [x] [models.py](api/app/control/models.py): Modelos SQLAlchemy declarativos (`Tenant`, `TenantModulo`, `TenantJob`, `PlataformaAdmin`).
 - [x] Configuración de Alembic para el control: [alembic_control.ini](api/alembic_control.ini) y [migrations_control/](api/migrations_control/).
 - [x] Migración inicial de control: `0001_control_init` aplicada exitosamente sobre `erp_control`.
 - [x] [repository.py](api/app/control/repository.py): Operaciones de consulta y mutación asíncronas para tenants y jobs.
-- [x] [cli/main.py](api/cli/main.py): CLI `erpctl control init` funcional para inicializar y migrar el plano de control.
-- [x] Suite de pruebas automatizadas: **14 pruebas pasando** (unitarias e integración real contra PostgreSQL 18).
+- [x] [cli/main.py](api/cli/main.py): CLI `erpctl control init` funcional.
+
+### 1.6 Plano de Datos de Tenants (Bases de Clientes `erp_c_<slug>`)
+- [x] Configuración de Alembic para clientes: [alembic.ini](api/alembic.ini) y [migrations/](api/migrations/).
+- [x] Modelos base de datos de cliente:
+  - [modules/admin/models.py](api/app/modules/admin/models.py): `Company`, `Warehouse`, `AlicuotaIva`, `Correlativo`, `IdempotencyKey`.
+  - [modules/identidad/models.py](api/app/modules/identidad/models.py): `Usuario`, `Rol`, `Permiso`, `RolPermiso`, `UsuarioRol`, `SesionRefresh`, `AuditLog`.
+- [x] Migración inicial de tenant: `0001_tenant_base` con las 12 tablas principales, claves foráneas y restricciones.
+- [x] [aprovisionamiento.py](api/app/control/aprovisionamiento.py): Flujo de **10 pasos de aprovisionamiento automatizado**:
+  1. Validación de formato de slug (`^[a-z][a-z0-9-]{1,38}[a-z0-9]$`).
+  2. Registro en `erp_control` en estado `aprovisionando` e inicio de `TenantJob`.
+  3. Creación de la base de datos `erp_c_<slug>` (dueño `erp_owner`).
+  4. Ejecución de migraciones Alembic de tenant hasta `head`.
+  5. Configuración de privilegios DML para `erp_app` y tabla `audit_log` estrictamente append-only (sin UPDATE ni DELETE).
+  6. Siembra de datos base: permisos del sistema (admin, inventario, ventas, compras, bancos, cxc/cxp, impuestos, reportes) y alícuotas de IVA venezolanas (General 16%, Reducida 8%, Adicional 31%, Exento 0%).
+  7. Creación de la primera empresa, depósito inicial `PRINCIPAL`, rol `Administrador` y primer usuario administrador.
+  8. Registro de módulos contratados en `tenant_modulo`.
+  9. Verificación de conectividad y conteo de tablas con rol `erp_app`.
+  10. Transición a estado `activo` y finalización del job en `OK`.
+- [x] Comandos de gestión de tenants en `erpctl`:
+  - `erpctl tenant crear`: Creación desatendida de clientes.
+  - `erpctl tenant listar`: Visualización formateada en tabla con estados e indicador de bases activas (`--solo-db`).
+  - `erpctl tenant suspender`: Suspensión inmediata sin pérdida de datos.
+  - `erpctl tenant activar`: Reactivación de clientes.
+
+### 1.7 Tenancy, Aislamiento y Autenticación en Runtime
+- [x] [tenancy/motores.py](api/app/tenancy/motores.py): Caché LRU de conexiones `AsyncEngine` por cliente con descarte ordenado (`statement_cache_size=0` compatible con PgBouncer).
+- [x] [tenancy/registro.py](api/app/tenancy/registro.py): Resolución de metadatos de tenant y validación de estado (`activo` permite paso; `suspendido` emite 403 `TENANT_SUSPENDIDO`; `aprovisionando` emite 503).
+- [x] [tenancy/deps.py](api/app/tenancy/deps.py): Dependencia FastAPI `sesion_tenant` que extrae el JWT, valida que el tenant esté activo, abre transacción y ejecuta `SELECT set_config('app.company_id', :cid, true)`.
+- [x] [tenancy/rls.py](api/app/tenancy/rls.py): Utilidad para habilitar y forzar Row-Level Security por empresa (Fail-closed).
+- [x] [modules/identidad/router.py](api/app/modules/identidad/router.py):
+  - `POST /api/v1/auth/login`: Autenticación con slug de cliente + usuario + contraseña (bloqueo por 30 min tras 5 intentos fallidos). Emite access token JWT y refresh token criptográfico.
+  - `POST /api/v1/auth/refresh`: Renovación rotativa de tokens (invalida el token anterior y emite uno nuevo).
+  - `GET /api/v1/auth/me`: Perfil del usuario autenticado, empresa activa, roles y lista consolidada de permisos.
+- [x] [tests/tenancy/test_aislamiento.py](api/tests/tenancy/test_aislamiento.py): Pruebas de integración que garantizan:
+  - Flujo completo de login, `/me` y rotación de refresh tokens.
+  - Aislamiento estricto: tokens de cliente A rechazados en cliente B.
+  - Suspensión de cuenta: tenant suspendido recibe 403 `TENANT_SUSPENDIDO` de inmediato en peticiones de negocio.
 
 ---
 
 ## 2. Lo Pendiente por Realizar
 
-### 2.1 Resto de la Fase 0 (Plataforma y Aislamiento) - *Próximo Bloque*
-1. **Cadena de Migraciones de Tenant (`api/migrations/`):**
-   - Configuración de Alembic para el plano de datos (`erp_c_<slug>`).
-   - Migración inicial con tablas maestras del tenant: `company`, `usuario`, `rol`, `permiso`, `audit_log`, `idempotency_keys`, `correlativo`, `alicuota_iva`, `warehouse`.
-2. **Módulo de Identidad (`api/app/modules/identidad/`):**
-   - Hashing seguro de contraseñas con **Argon2id**.
-   - Emisión y validación de tokens JWT (acceso 15 min, refresh rotativo revocable en BD).
-   - Inclusión obligatoria de `tid` (tenant) y `cid` (company) en el JWT.
-   - Verificación de permisos por empresa en capa de servicio.
-3. **Aprovisionamiento Automatizado (`erpctl tenant crear`):**
-   - Implementar los 10 pasos de aprovisionamiento:
-     1. Validación de slug.
-     2. Registro en `erp_control` en estado `aprovisionando`.
-     3. Creación de la base de datos `erp_c_<slug>` (dueño `erp_owner`).
-     4. Ejecución de migraciones Alembic de tenant hasta `head`.
-     5. Configuración de permisos DML para `erp_app`.
-     6. Siembra de datos base (roles Administrador/Contador/Vendedor, monedas VES/USD, alícuotas IVA).
-     7. Creación de primera empresa y usuario administrador inicial con enlace de activación temporal.
-     8. Asignación de módulos en `tenant_modulo`.
-     9. Verificación de conectividad.
-     10. Transición a estado `activo`.
-   - Comandos de ciclo de vida: `erpctl tenant listar`, `suspender`, `activar`.
-4. **Resolución de Tenant y Multitenancy en Runtime (`api/app/tenancy/`):**
-   - Registro en memoria / Redis con TTL para lookup de tenants.
-   - Caché LRU de motores SQLAlchemy (`AsyncEngine`) por cliente (`motores.py`).
-   - Inyección de dependencias `sesion_tenant` con ejecución obligatoria de `SELECT set_config('app.company_id', :cid, true)`.
-   - Configuración de políticas **Row-Level Security (RLS)** por empresa en PostgreSQL.
-5. **Pruebas de Aislamiento Estricto:**
-   - Pruebas que verifiquen que un usuario del cliente A no puede acceder a datos del cliente B bajo ninguna circunstancia.
-   - Pruebas que verifiquen que un tenant suspendido recibe 403 `TENANT_SUSPENDIDO`.
-6. **Infraestructura y Despliegue Base:**
-   - Archivos de servicio Quadlet para Podman (`redis.container`, `api.container`, `worker.container`, `caddy.container`).
-   - Configuración de Caddy con TLS y proxy inverso.
-   - Script de respaldo por cliente con `pg_dump -Fc` y cifrado GPG.
+### 2.1 Cierre de la Fase 0 (Plataforma y Aislamiento) - *Último Bloque*
+1. **Infraestructura y Despliegue con Podman (Quadlet):**
+   - Configurar archivos Quadlet de systemd en `deploy/quadlet/`:
+     - `redis.container`: Redis 7 alpine con `maxmemory 128mb` y `maxmemory-policy noeviction`.
+     - `api.container`: Contenedor de la API FastAPI con 2 workers.
+     - `worker.container`: Contenedor del worker y planificador de tareas (arq / apscheduler).
+     - `caddy.container`: Caddy 2 con proxy a la API y servicio de archivos estáticos.
+2. **Scripts de Respaldos Diarios:**
+   - Script `deploy/backup/respaldo_diario.sh`:
+     - Itera sobre `erpctl tenant listar --solo-db` y `erp_control`.
+     - Genera `pg_dump -Fc` por cliente.
+     - Cifrado con GPG.
+     - Sincronización remota con `rclone`.
+     - Retención local de 3 días para proteger el espacio en disco de 20 GB.
+3. **Comando `erpctl migrar --todos`:**
+   - Orquestador de migraciones Alembic sobre todos los clientes (primero el canario, luego el resto, registrando en `tenant_job`).
 
 ---
 
-### 2.2 Fases Futuras del Roadmap
+### 2.2 Fases Siguientes del Roadmap
 
 * **Fase 1: Administración**
   - CRUD de empresas, depósitos, categorías, productos, proveedores, clientes, zonas, vendedores, instrumentos de pago.
@@ -118,5 +135,5 @@
 * **Fase 6 & 7: Sincronización y App Móvil de Campo**
   - *(Pospuesto por solicitud expresa: se abordará en su respectiva fase)*.
 * **Fase 8: Piloto, Pruebas de Carga y Endurecimiento Operativo**
-  - Pruebas de concurrencia y carga.
+  - Pruebas de concurrencia y carga con k6 o Locust.
   - Simulacros de restauración y recuperación ante desastres.

@@ -6,24 +6,20 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.control.models import *  # noqa: F403, F401
-from app.core.config import settings
 from app.core.db import Base
+from app.modules.admin.models import *  # noqa: F403, F401
+from app.modules.identidad.models import *  # noqa: F403, F401
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.CONTROL_DB_OWNER_URL
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -44,7 +40,6 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.CONTROL_DB_OWNER_URL
 
     connectable = async_engine_from_config(
         configuration,

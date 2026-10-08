@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test run-api clean
+.PHONY: help install lint format typecheck test run-api clean init-test test-conn
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -16,6 +16,8 @@ help:
 	@echo "  make typecheck   Ejecuta comprobación de tipos con mypy"
 	@echo "  make test        Ejecuta suite de pruebas con pytest"
 	@echo "  make run-api     Inicia servidor de desarrollo FastAPI"
+	@echo "  make init-test   Inicializa y siembra la empresa canario permanente 'test'"
+	@echo "  make test-conn   Prueba conexión y operaciones contra el tenant 'test'"
 	@echo "  make clean       Limpia cachés y artefactos temporales"
 
 install:
@@ -44,3 +46,9 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+
+init-test:
+	PYTHONPATH=api $(PYTHON) -m cli.main test init
+
+test-conn:
+	PYTHONPATH=api $(PYTHON) scripts/probar_conexion.py

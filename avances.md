@@ -118,14 +118,30 @@
 
 ---
 
+### 2.9 Entorno de Pruebas Fijo y Estrategia Canario Multi-Tenant
+- [x] **Tenant Permanente de Pruebas (`test` / `erp_c_test`):**
+  - Creado aprovisionador idempotente en `api/app/control/seed_test.py` con credenciales maestras (`admin` / `GalaxyTest2026!`).
+  - Sembrado completo de catálogos: Almacenes `PRINCIPAL` y `TIENDA`, productos alimenticios y bebidas con stock inicial en kardex, clientes contribuyentes ordinarios y especiales con retenciones configuradas (75% / 0%), proveedores, instrumentos de pago en USD/VES y cuentas bancarias.
+  - Marcado oficial con `es_canario=True` en la tabla `tenant` de `erp_control`.
+- [x] **Protección Estructural de Clientes (Despliegue Canario Falla-Segura):**
+  - Todas las bases de datos de clientes se crean con el mismo esquema estructural idéntico a `test` vía Alembic `head` y políticas RLS.
+  - `erpctl migrar --todos` prioriza siempre a los tenants con `es_canario=True` (la base de datos `test`). Si la migración falla en `test`, el proceso se aborta inmediatamente, protegiendo al 100% las bases de datos y la integridad de los datos de los clientes en producción.
+- [x] **Comandos CLI y Automatización:**
+  - `erpctl test init` y `make init-test`: Siembra y sincronización del tenant `test`.
+  - `scripts/probar_conexion.py` y `make test-conn`: Verificación interactiva de autenticación, catálogos, retenciones y saldos.
+  - `scripts/probar_conexion.sh`: Script en Bash para pruebas vía `curl`.
+
+---
+
 ## 3. Pruebas y Verificación
 
 - **Suite de Pruebas Pytest:**
   - `test_ciclo_completo_fases_1_a_5.py`: Ciclo de vida completo de compras, inventario, ventas, bancos y libros fiscales.
-  - `test_sync_y_pdf.py`: Prueba de integración completa de sincronización móvil offline y descarga de PDF fiscal.
-  - Total: **22 pruebas automatizadas pasando al 100%**.
-- **Linter Ruff:** 100% limpio sin advertencias ni errores.
-- **Mypy:** Tipado estricto verificado en 73 módulos del backend sin fallos.
+  - `test_sync_y_pdf.py`: Sincronización móvil offline y generación de PDF fiscal.
+  - `test_tenant_test.py`: Integración completa del tenant canario permanente `test` y acceso a catálogos sembrados.
+  - Total: **24 pruebas automatizadas pasando al 100%**.
+- **Linter Ruff:** 100% limpio en todo el backend y CLI (`All checks passed!`).
+- **Mypy:** Tipado estricto verificado en 74 archivos fuente sin errores (`Success: no issues found in 74 source files`).
 - **OpenAPI Specification:** 47 endpoints REST documentados en `docs/openapi.json`.
 
 ---
@@ -135,3 +151,4 @@
 * **Piloto y Pruebas de Carga (k6 / Locust):** Simulación de estrés con usuarios concurrentes.
 * **Compilación de Producción de Flutter:** Generar binarios Web (`flutter build web`) y APK Android para vendedores de campo.
 * **Puesta en marcha definitiva con Caddy y Quadlet en el VPS**.
+

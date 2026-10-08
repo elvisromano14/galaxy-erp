@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import Any
 
 import typer
 from alembic import command
@@ -295,5 +296,49 @@ def salud() -> None:
     console.print(tabla)
 
 
+# --- SUBCOMANDO TEST (ENTORNO PERMANENTE DE PRUEBAS) ---
+test_app = typer.Typer(help="Gestión de la empresa y base de datos de pruebas permanente ('test').")
+app.add_typer(test_app, name="test")
+
+
+@test_app.command("init")
+def test_init() -> None:
+    """Garantiza la existencia y datos completos de la empresa y base de datos 'test'."""
+    from app.control.seed_test import (
+        TEST_ADMIN_EMAIL,
+        TEST_ADMIN_PASS,
+        TEST_ADMIN_USER,
+        TEST_RAZON_SOCIAL,
+        TEST_RIF,
+        TEST_SLUG,
+        garantizar_tenant_test,
+    )
+
+    console.print(
+        f"[bold yellow]Inicializando empresa y BD permanente '{TEST_SLUG}'...[/bold yellow]"
+    )
+
+    async def _ejecutar() -> Any:
+        return await garantizar_tenant_test()
+
+    try:
+        tenant = asyncio.run(_ejecutar())
+        console.print("[bold green]✓ Empresa 'test' garantizada y lista para usar.[/bold green]")
+        console.print(f"  • Slug: [cyan]{tenant.slug}[/cyan]")
+        console.print(f"  • Base de Datos: [magenta]{tenant.db_name}[/magenta]")
+        console.print(f"  • Razón Social: {TEST_RAZON_SOCIAL} ({TEST_RIF})")
+        console.print(f"  • Usuario: [bold]{TEST_ADMIN_USER}[/bold]")
+        console.print(f"  • Contraseña: [bold]{TEST_ADMIN_PASS}[/bold]")
+        console.print(f"  • Email: {TEST_ADMIN_EMAIL}")
+        console.print(
+            "  • Rol en Migraciones: "
+            "[bold yellow]Canario Oficial (primero en recibir cambios)[/bold yellow]"
+        )
+    except Exception as exc:
+        console.print(f"[red]Error al inicializar tenant de pruebas: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
 if __name__ == "__main__":
     app()
+

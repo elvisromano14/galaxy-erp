@@ -13,8 +13,8 @@ echo " Tenant objetivo:   $SLUG"
 echo "======================================================================"
 
 # 1. Healthcheck
-echo -n "1. Verificando disponibilidad de la API ($API_URL/healthz)... "
-if ! curl -sf "$API_URL/healthz" > /dev/null 2>&1; then
+echo -n "1. Verificando disponibilidad de la API ($API_URL/salud)... "
+if ! curl -sf "$API_URL/salud" > /dev/null 2>&1; then
     echo "NO DISPONIBLE."
     echo "Inicie la API ejecutando en otra terminal: make api"
     exit 1

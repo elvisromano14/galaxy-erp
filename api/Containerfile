@@ -1,5 +1,5 @@
 # Etapa 1: Constructor de dependencias
-FROM docker.io/library/python:3.12-slim AS builder
+FROM docker.io/library/python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -8,13 +8,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
+COPY app ./app
+COPY cli ./cli
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip wheel --no-cache-dir --wheel-dir /build/wheels -e .
+    pip wheel --no-cache-dir --wheel-dir /build/wheels .
 
 
 # Etapa 2: Imagen final para producción
-FROM docker.io/library/python:3.12-slim
+FROM docker.io/library/python:3.14-slim
 
 WORKDIR /app
 
@@ -30,20 +32,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Copiar wheels e instalar dependencias a nivel de sistema
+COPY --from=builder /build/wheels /wheels
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+
 # Crear usuario de servicio no privilegiado
 RUN useradd -m -u 1000 -s /bin/bash erp
 USER erp
 
-# Copiar wheels e instalar
-COPY --from=builder /build/wheels /wheels
-RUN pip install --no-cache-dir --user /wheels/* && rm -rf /wheels
-
-# Copiar código de aplicación
+# Copiar código de aplicación y configuración de migraciones
+COPY --chown=erp:erp alembic.ini alembic_control.ini /app/
 COPY --chown=erp:erp app /app/app
 COPY --chown=erp:erp cli /app/cli
 COPY --chown=erp:erp migrations /app/migrations
 COPY --chown=erp:erp migrations_control /app/migrations_control
 
+ENV PYTHONPATH="/app"
 ENV PATH="/home/erp/.local/bin:${PATH}"
 ENV PYTHONUNBUFFERED=1
 

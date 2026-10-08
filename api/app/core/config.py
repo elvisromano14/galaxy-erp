@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         description="URL de conexión a Redis",
     )
 
-    # Seguridad y JWT
+    # Seguridad, CORS y Hardening
     JWT_SECRET_KEY: str = Field(
         default="change-this-in-production-secret-key-32b",
         description="Clave secreta para firma de JWT",
@@ -37,6 +37,23 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ALLOWED_ORIGINS: list[str] = Field(
+        default=["*"],
+        description="Lista de orígenes permitidos para CORS",
+    )
+    MAX_BODY_SIZE_MB: int = Field(
+        default=10,
+        description="Tamaño máximo permitido para payloads HTTP en MB",
+    )
+    RATE_LIMIT_LOGIN_MAX: int = Field(
+        default=10,
+        description="Máximo de peticiones de login permitidas por IP en la ventana de tiempo",
+    )
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = Field(
+        default=60,
+        description="Ventana de tiempo para rate-limiting de login en segundos",
+    )
+    ENABLE_SECURITY_HEADERS: bool = True
 
     # Zona horaria
     TIMEZONE: str = "America/Caracas"

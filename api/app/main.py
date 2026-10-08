@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.errores import GalaxyERPException
+from app.core.middleware import MaxBodySizeMiddleware, SecurityHeadersMiddleware
 from app.modules.admin.router import router as admin_router
 from app.modules.bancos.router import router as bancos_router
 from app.modules.compras.router import router as compras_router
@@ -19,6 +21,17 @@ app = FastAPI(
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url=None,
 )
+
+# --- MIDDLEWARES DE SEGURIDAD (DEFENSE IN DEPTH) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(MaxBodySizeMiddleware)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router)

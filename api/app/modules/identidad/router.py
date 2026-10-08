@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.control.db import control_session
 from app.core.config import settings
 from app.core.errores import GalaxyERPException
+from app.core.middleware import verificar_rate_limit_login
 from app.core.seguridad import (
     TokenData,
     crear_access_token,
@@ -35,7 +36,11 @@ def _hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    dependencies=[Depends(verificar_rate_limit_login)],
+)
 async def login(req: LoginRequest) -> LoginResponse:
     # 1. Obtener tenant de erp_control
     async with control_session() as c_session:

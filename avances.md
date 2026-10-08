@@ -131,6 +131,22 @@
   - `scripts/probar_conexion.py` y `make test-conn`: Verificación interactiva de autenticación, catálogos, retenciones y saldos.
   - `scripts/probar_conexion.sh`: Script en Bash para pruebas vía `curl`.
 
+### 2.10 Endurecimiento de Seguridad (Hardening) y Preparación VPS / Tailscale
+- [x] **Seguridad en Profundidad (Defense in Depth):**
+  - Creado middleware `SecurityHeadersMiddleware` en `app/core/middleware.py`:
+    - HSTS (`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`).
+    - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`.
+    - `Referrer-Policy: strict-origin-when-cross-origin` y `Permissions-Policy`.
+    - Content-Security-Policy (CSP) restrictivo para bloquear inyecciones XSS.
+    - Ocultamiento de cabeceras de fingerprinting (`Server`, `X-Powered-By`).
+  - Middleware `MaxBodySizeMiddleware` para prevenir ataques de agotamiento de memoria HTTP/POST masivo (> 10MB con error `413 Payload Too Large`).
+  - Middleware `CORSMiddleware` estricto con dominios configurables por entorno (`ALLOWED_ORIGINS`).
+  - Rate Limiting anti-fuerza bruta en endpoint `/api/v1/auth/login` respaldado en Redis con ventana deslizante y fail-open seguro.
+- [x] **Endurecimiento de Contenedores y Proxy Inverso:**
+  - `deploy/caddy/Caddyfile`: Bloqueo de métodos HTTP no permitidos, bloqueo de archivos y rutas ocultas (`.git`, `.env`), cabeceras HSTS y TLS 1.2/1.3 para nodo privado de Tailscale.
+  - `deploy/quadlet/api.container`: `NoNewPrivileges=true`, `DropCapability=ALL`, `AddCapability=CHOWN SETUID SETGID` para evitar cualquier escalada de privilegios en el VPS.
+  - `deploy/scripts/setup_vps.sh`: Script integral de instalación y puesta en marcha desatendida en el VPS.
+
 ---
 
 ## 3. Pruebas y Verificación
@@ -138,10 +154,11 @@
 - **Suite de Pruebas Pytest:**
   - `test_ciclo_completo_fases_1_a_5.py`: Ciclo de vida completo de compras, inventario, ventas, bancos y libros fiscales.
   - `test_sync_y_pdf.py`: Sincronización móvil offline y generación de PDF fiscal.
-  - `test_tenant_test.py`: Integración completa del tenant canario permanente `test` y acceso a catálogos sembrados.
-  - Total: **24 pruebas automatizadas pasando al 100%**.
+  - `test_tenant_test.py`: Integración completa del tenant canario permanente `test` y catálogos sembrados.
+  - `test_seguridad_hardening.py`: Verificación de cabeceras de seguridad HTTP y rechazo de payloads excesivos (413).
+  - Total: **26 pruebas automatizadas pasando al 100%**.
 - **Linter Ruff:** 100% limpio en todo el backend y CLI (`All checks passed!`).
-- **Mypy:** Tipado estricto verificado en 74 archivos fuente sin errores (`Success: no issues found in 74 source files`).
+- **Mypy:** Tipado estricto verificado en 75 archivos fuente sin errores (`Success: no issues found in 75 source files`).
 - **OpenAPI Specification:** 47 endpoints REST documentados en `docs/openapi.json`.
 
 ---
@@ -150,5 +167,5 @@
 
 * **Piloto y Pruebas de Carga (k6 / Locust):** Simulación de estrés con usuarios concurrentes.
 * **Compilación de Producción de Flutter:** Generar binarios Web (`flutter build web`) y APK Android para vendedores de campo.
-* **Puesta en marcha definitiva con Caddy y Quadlet en el VPS**.
+* **Ejecutar `deploy/scripts/setup_vps.sh` en el VPS con Tailscale**.
 

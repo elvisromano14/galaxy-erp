@@ -19,6 +19,11 @@ Exec=uvicorn app.main:app \
 Volume=erp-files:/data/files:Z
 PublishPort=127.0.0.1:8000:8000
 
+# Endurecimiento de seguridad de Podman
+NoNewPrivileges=true
+DropCapability=ALL
+AddCapability=CHOWN SETUID SETGID
+
 HealthCmd=curl -fsS http://localhost:8000/salud
 HealthInterval=30s
 HealthTimeout=10s

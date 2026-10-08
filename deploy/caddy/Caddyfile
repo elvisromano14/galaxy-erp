@@ -2,13 +2,38 @@
     admin off
 }
 
-# Dominio / nodo de Tailscale (configurable por variable de entorno o archivo)
+# Dominio / nodo de Tailscale (ejemplo: erp.mi-red.ts.net)
 {$TAILSCALE_DOMAIN:galaxy-erp.tailscale.net} {
-    # Certificados provistos por Tailscale (o let's encrypt si es público)
-    tls /certs/galaxy.crt /certs/galaxy.key
+    # Certificado provisto por Tailscale o interno
+    tls {$TLS_CERT:/certs/galaxy.crt} {$TLS_KEY:/certs/galaxy.key} {
+        protocols tls1.2 tls1.3
+    }
 
     # Compresión moderna
     encode zstd gzip
+
+    # Bloquear métodos HTTP no permitidos
+    @disallowed_methods {
+        not method GET POST PUT PATCH DELETE OPTIONS HEAD
+    }
+    respond @disallowed_methods "Método no permitido" 405
+
+    # Bloquear acceso a archivos ocultos o confidenciales
+    @blocked_files {
+        path */.* *.env *.git* *.md *.bak *.ini
+    }
+    respond @blocked_files "Acceso denegado" 403
+
+    # Cabeceras de seguridad globales
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=()"
+        -Server
+    }
 
     # Proxy a la API FastAPI
     handle /api/* {
@@ -20,14 +45,25 @@
         }
     }
 
-    # Servir archivos estáticos del cliente Web (SPA)
+    # Endpoints operativos (/salud, /docs)
+    handle /salud* {
+        reverse_proxy api:8000
+    }
+    handle /docs* {
+        reverse_proxy api:8000
+    }
+    handle /openapi.json {
+        reverse_proxy api:8000
+    }
+
+    # Servir archivos estáticos del cliente Web (SPA Flutter)
     handle {
         root * /srv/web
         try_files {path} /index.html
         file_server
     }
 
-    # Logs estructurados en JSON hacia stdout (journald)
+    # Logs estructurados en JSON hacia stdout
     log {
         output stdout
         format json

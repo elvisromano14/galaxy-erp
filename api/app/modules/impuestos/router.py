@@ -84,3 +84,17 @@ async def listar_retenciones_iva(
     session: Annotated[AsyncSession, Depends(sesion_tenant)],
 ) -> Any:
     return await ImpuestosService.listar_retenciones_iva(session, token.cid)
+
+
+@router.get("/retenciones-iva/{comprobante_id}/pdf")
+async def descargar_retencion_iva_pdf(
+    comprobante_id: Any,
+    token: Annotated[TokenData, Depends(get_token_auth)],
+    session: Annotated[AsyncSession, Depends(sesion_tenant)],
+) -> Response:
+    pdf_bytes = await ImpuestosService.obtener_retencion_iva_pdf(session, token.cid, comprobante_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=retencion_iva_{comprobante_id}.pdf"},
+    )

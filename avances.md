@@ -17,6 +17,9 @@
 | **Fase 3** | Compras y Ventas, Ciclos completos, Correlativos atómicos, Facturación bimoneda | **100%** | Integrado |
 | **Fase 4** | Finanzas, Bancos, Cuentas por Cobrar (CxC), Cuentas por Pagar (CxP), Antigüedad | **100%** | Integrado |
 | **Fase 5** | Impuestos SENIAT, Comprobantes de Retención IVA/ISLR, Libros Fiscales y Exportador Excel | **100%** | Integrado |
+| **Fase 6** | Sincronización Offline, Dispositivos de Preventa, Bloques de Correlativos, Idempotencia | **100%** | Integrado |
+| **PDF Fiscal** | Plantillas WeasyPrint/Jinja2 para Facturas de Venta y Comprobantes de Retención | **100%** | Integrado |
+| **Frontend** | Shell Multiplataforma Flutter / Dart en `mobile/` (Login, Dashboard, Ventas, Inventario, Sync) | **100%** | Arquitectura |
 
 ---
 
@@ -84,27 +87,51 @@
 - [x] **Comprobantes de Retención:**
   - `ComprobanteRetencionIva` y `ComprobanteRetencionIslr` con correlativo fiscal del agente de retención.
 - [x] **Libros Fiscales SENIAT:**
-  - Libro de Ventas y Libro de Compras conforme a la normativa tributaria venezolana (período fiscal, RIF, número de factura, número de control, base imponible por alícuota, montos exentos, IVA retenido).
-- [x] **Exportación Excel (`app/modules/reportes/exportador.py`):**
-  - Generación de archivos `.xlsx` estilizados con cabeceras, totales y formato financiero estándar para presentación ante el SENIAT.
+  - Libro de Ventas y Libro de Compras conforme a la normativa tributaria venezolana.
+- [x] **Exportación Excel y PDF Fiscal:**
+  - Reportes `.xlsx` estilizados con cabeceras y fórmulas automáticas ([`exportador.py`](api/app/modules/reportes/exportador.py)).
+  - Generador de Factura de Venta y Comprobantes de Retención en PDF vectorial con Jinja2 y WeasyPrint ([`pdf.py`](api/app/modules/reportes/pdf.py)).
 - [x] **Endpoints y Router:** `/api/v1/impuestos/*`.
+
+### 2.7 Fase 6: Sincronización Offline y Preventa
+- [x] **Modelos (`app/modules/sync/models.py`):**
+  - `DispositivoSync`: Registro y autorización de terminales móviles (IMEI / UUID).
+  - `SyncBloqueCorrelativo`: Reserva atómica de bloques de números para ventas sin conexión.
+  - `SyncOperacionLog`: Auditoría e idempotencia por `client_op_id` con estados `APLICADA`, `RECHAZADA`, `DUPLICADA`.
+- [x] **Migración Alembic:** `0003_sincronizacion_offline` aplicada con permisos DML y Row-Level Security por empresa.
+- [x] **Endpoints y Router (`app/modules/sync/router.py`):**
+  - `POST /api/v1/sync/dispositivos`: Registro de dispositivo móvil.
+  - `GET /api/v1/sync/catalogos`: Descarga incremental de productos, clientes, almacenes y existencias con `sync_token`.
+  - `POST /api/v1/sync/bloques`: Solicitud de bloque de correlativos offline.
+  - `POST /api/v1/sync/operaciones`: Procesamiento transaccional atómico por lotes con savepoints independientes.
+
+### 2.8 Cliente Frontend Multiplataforma (Flutter / Dart)
+- [x] Proyecto estructurado en `mobile/`:
+  - `mobile/pubspec.yaml` con dependencias Riverpod, Dio y Drift (SQLite).
+  - `mobile/lib/core/api_client.dart` con interceptores JWT y multi-tenancy.
+  - `mobile/lib/core/theme.dart` con estilo profesional inspirado en Kite.
+  - `mobile/lib/features/auth/login_screen.dart` para acceso por cliente (`slug`) + usuario + clave.
+  - `mobile/lib/features/dashboard/dashboard_screen.dart` con menú lateral y KPIs.
+  - `mobile/lib/features/ventas/ventas_screen.dart` y descarga de facturas en PDF.
+  - `mobile/lib/features/inventario/inventario_screen.dart` para existencias y traslados.
+  - `mobile/lib/features/sync/sync_screen.dart` para sincronización de campo.
 
 ---
 
 ## 3. Pruebas y Verificación
 
 - **Suite de Pruebas Pytest:**
-  - `test_ciclo_completo_fases_1_a_5.py`: Simulación end-to-end de un tenant real aprovisionado (carga de catálogos, tasa BCV, compra a proveedor con retención, entrada a inventario, venta a cliente con descuento de stock, cobro por punto de venta/banco, emisión de comprobante de retención y libro fiscal SENIAT).
-  - Total: **21 pruebas automatizadas pasando al 100%**.
-- **Linter Ruff:** 100% limpio sin errores de estilo ni sintaxis.
-- **Mypy:** Tipado estricto verificado en 67 módulos del backend sin fallos.
+  - `test_ciclo_completo_fases_1_a_5.py`: Ciclo de vida completo de compras, inventario, ventas, bancos y libros fiscales.
+  - `test_sync_y_pdf.py`: Prueba de integración completa de sincronización móvil offline y descarga de PDF fiscal.
+  - Total: **22 pruebas automatizadas pasando al 100%**.
+- **Linter Ruff:** 100% limpio sin advertencias ni errores.
+- **Mypy:** Tipado estricto verificado en 73 módulos del backend sin fallos.
+- **OpenAPI Specification:** 47 endpoints REST documentados en `docs/openapi.json`.
 
 ---
 
-## 4. Próximos Pasos (Roadmap Restante)
+## 4. Próximos Pasos (Fase 8: Piloto y Producción)
 
-* **Fase 6: Sincronización y App Móvil / Frontend Flutter (Kite Shell)**
-  - Interfaz de usuario para escritorio y web en Flutter.
-  - Modo offline para vendedores de campo con sincronización asíncrona segura.
-* **Fase 7: Punto de Venta (POS) y Facturación Rápida**.
-* **Fase 8: Piloto, Pruebas de Carga y Endurecimiento Operativo**.
+* **Piloto y Pruebas de Carga (k6 / Locust):** Simulación de estrés con usuarios concurrentes.
+* **Compilación de Producción de Flutter:** Generar binarios Web (`flutter build web`) y APK Android para vendedores de campo.
+* **Puesta en marcha definitiva con Caddy y Quadlet en el VPS**.

@@ -178,3 +178,55 @@ class ImpuestosService:
         )
         res = await session.execute(stmt)
         return res.scalars().all()
+
+    @staticmethod
+    async def obtener_retencion_iva_pdf(
+        session: AsyncSession, company_id: uuid.UUID, comprobante_id: uuid.UUID
+    ) -> bytes:
+        from app.core.errores import GalaxyERPException
+        from app.modules.admin.models import Company
+        from app.modules.compras.models import CompraFactura
+        from app.modules.reportes.pdf import generar_comprobante_retencion_pdf
+
+        comp = await session.get(ComprobanteRetencionIva, comprobante_id)
+        if not comp or comp.company_id != company_id:
+            raise GalaxyERPException(
+                code="COMPROBANTE_NO_ENCONTRADO",
+                title="Comprobante no encontrado",
+                status=404,
+                detail="El comprobante de retención no existe.",
+            )
+
+        agente = await session.get(Company, company_id)
+        sujeto = await session.get(Proveedor, comp.proveedor_id)
+        compra = await session.get(CompraFactura, comp.compra_id)
+
+        agente_dict = {
+            "razon_social": agente.razon_social if agente else "EMPRESA AGENTE",
+            "rif": agente.rif if agente else "J-00000000-0",
+            "direccion_fiscal": agente.direccion_fiscal if agente else "",
+        }
+        sujeto_dict = {
+            "nombre": sujeto.razon_social if sujeto else "PROVEEDOR SUJETO",
+            "tipo_identificacion": "",
+            "identificacion": sujeto.rif if sujeto else "",
+            "direccion": sujeto.direccion if sujeto else "",
+        }
+        comp_dict = {
+            "numero": comp.numero_comprobante,
+            "fecha_emision": comp.fecha_emision.isoformat(),
+            "periodo_fiscal": comp.periodo_fiscal,
+            "factura_numero": compra.numero_factura if compra else "S/N",
+            "numero_control": compra.numero_control if compra else "S/N",
+            "base_imponible": float(comp.base_imponible_ves),
+            "monto_impuesto": float(comp.monto_iva_ves),
+            "porcentaje": float(comp.porcentaje_retencion),
+            "monto_retenido": float(comp.monto_retenido_ves),
+        }
+
+        return generar_comprobante_retencion_pdf(
+            agente=agente_dict,
+            sujeto=sujeto_dict,
+            comprobante=comp_dict,
+            tipo_retencion="IVA",
+        )

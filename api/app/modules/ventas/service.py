@@ -341,3 +341,78 @@ class VentasService:
 
         await session.flush()
         return nc
+
+    @staticmethod
+    async def obtener_factura_pdf(
+        session: AsyncSession,
+        company_id: uuid.UUID,
+        factura_id: uuid.UUID,
+    ) -> bytes:
+        from app.modules.admin.models import Cliente, Company, Product
+        from app.modules.reportes.pdf import generar_factura_pdf
+
+        factura = await session.get(FacturaVenta, factura_id)
+        if not factura or factura.company_id != company_id:
+            raise GalaxyERPException(
+                code="FACTURA_NO_ENCONTRADA",
+                title="Factura no encontrada",
+                status=404,
+                detail="La factura no existe.",
+            )
+
+        empresa = await session.get(Company, company_id)
+        cliente = await session.get(Cliente, factura.cliente_id)
+
+        res_det = await session.execute(
+            select(FacturaVentaDetalle, Product)
+            .join(Product, FacturaVentaDetalle.product_id == Product.id)
+            .where(FacturaVentaDetalle.factura_id == factura_id)
+        )
+        detalles_rows = res_det.all()
+
+        detalles_data = [
+            {
+                "codigo": prod.codigo,
+                "descripcion": prod.descripcion,
+                "cantidad": float(det.cantidad),
+                "precio_unitario": float(det.precio_unitario),
+                "subtotal": float(det.subtotal),
+            }
+            for det, prod in detalles_rows
+        ]
+
+        empresa_dict = {
+            "razon_social": empresa.razon_social if empresa else "EMPRESA",
+            "rif": empresa.rif if empresa else "J-00000000-0",
+            "direccion_fiscal": empresa.direccion_fiscal if empresa else "",
+            "telefono": empresa.telefono if empresa else "",
+        }
+        cliente_dict = {
+            "nombre": cliente.nombre if cliente else "CLIENTE",
+            "tipo_identificacion": cliente.tipo_identificacion if cliente else "J",
+            "identificacion": cliente.identificacion if cliente else "",
+            "direccion": cliente.direccion if cliente else "",
+        }
+        condicion = "CREDITO" if factura.saldo_pendiente_usd > Decimal("0.00") else "CONTADO"
+        factura_dict = {
+            "numero": factura.numero_factura,
+            "numero_control": factura.numero_control,
+            "fecha_emision": factura.fecha_emision.isoformat(),
+            "condicion_pago": condicion,
+            "fecha_vencimiento": None,
+            "base_imponible": float(factura.base_imponible),
+            "monto_exento": float(factura.monto_exento),
+            "monto_iva": float(factura.monto_iva),
+            "monto_total": float(
+                factura.total_usd if factura.moneda == "USD" else factura.total_ves
+            ),
+            "moneda": factura.moneda,
+            "tasa_cambio": float(factura.tasa_cambio),
+        }
+
+        return generar_factura_pdf(
+            empresa=empresa_dict,
+            cliente=cliente_dict,
+            factura=factura_dict,
+            detalles=detalles_data,
+        )

@@ -16,6 +16,7 @@ from app.modules.admin.models import (
     TasaCambio,
     TipoOperacion,
     Vendedor,
+    Warehouse,
     Zona,
 )
 from app.modules.admin.schemas import (
@@ -28,6 +29,7 @@ from app.modules.admin.schemas import (
     TasaCambioCreate,
     TipoOperacionCreate,
     VendedorCreate,
+    WarehouseCreate,
     ZonaCreate,
 )
 
@@ -321,6 +323,29 @@ class AdminService:
             select(TipoOperacion)
             .where(TipoOperacion.company_id == company_id)
             .order_by(TipoOperacion.codigo)
+        )
+        res = await session.execute(stmt)
+        return res.scalars().all()
+
+    # --- ALMACENES ---
+    @staticmethod
+    async def crear_almacen(
+        session: AsyncSession, company_id: uuid.UUID, data: WarehouseCreate
+    ) -> Warehouse:
+        alm = Warehouse(
+            company_id=company_id,
+            codigo=data.codigo.strip().upper(),
+            nombre=data.nombre.strip(),
+            activo=True,
+        )
+        session.add(alm)
+        await session.flush()
+        return alm
+
+    @staticmethod
+    async def listar_almacenes(session: AsyncSession, company_id: uuid.UUID) -> Sequence[Warehouse]:
+        stmt = (
+            select(Warehouse).where(Warehouse.company_id == company_id).order_by(Warehouse.codigo)
         )
         res = await session.execute(stmt)
         return res.scalars().all()

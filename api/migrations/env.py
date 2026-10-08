@@ -14,6 +14,7 @@ from app.modules.cxc_cxp.models import *  # noqa: F403, F401
 from app.modules.identidad.models import *  # noqa: F403, F401
 from app.modules.impuestos.models import *  # noqa: F403, F401
 from app.modules.inventario.models import *  # noqa: F403, F401
+from app.modules.sync.models import *  # noqa: F403, F401
 from app.modules.ventas.models import *  # noqa: F403, F401
 
 config = context.config

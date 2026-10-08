@@ -27,6 +27,8 @@ from app.modules.admin.schemas import (
     TipoOperacionResponse,
     VendedorCreate,
     VendedorResponse,
+    WarehouseCreate,
+    WarehouseResponse,
     ZonaCreate,
     ZonaResponse,
 )
@@ -227,3 +229,21 @@ async def listar_tipos_operacion(
     session: Annotated[AsyncSession, Depends(sesion_tenant)],
 ) -> Any:
     return await AdminService.listar_tipos_operacion(session, token.cid)
+
+
+# --- ALMACENES ---
+@router.post("/almacenes", response_model=WarehouseResponse, status_code=201)
+async def crear_almacen(
+    data: WarehouseCreate,
+    token: Annotated[TokenData, Depends(get_token_auth)],
+    session: Annotated[AsyncSession, Depends(sesion_tenant)],
+) -> Any:
+    return await AdminService.crear_almacen(session, token.cid, data)
+
+
+@router.get("/almacenes", response_model=list[WarehouseResponse])
+async def listar_almacenes(
+    token: Annotated[TokenData, Depends(get_token_auth)],
+    session: Annotated[AsyncSession, Depends(sesion_tenant)],
+) -> Any:
+    return await AdminService.listar_almacenes(session, token.cid)

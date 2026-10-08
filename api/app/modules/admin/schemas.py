@@ -248,3 +248,19 @@ class TipoOperacionResponse(BaseModel):
     afecta_inventario: bool
     signo_inventario: int
     activo: bool
+
+
+# --- ALMACENES ---
+class WarehouseCreate(BaseModel):
+    codigo: str = Field(..., min_length=1, max_length=20)
+    nombre: str = Field(..., min_length=1, max_length=120)
+
+
+class WarehouseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    company_id: uuid.UUID
+    codigo: str
+    nombre: str
+    activo: bool

@@ -51,3 +51,19 @@ async def crear_nota_credito(
 ) -> dict[str, Any]:
     nc = await VentasService.crear_nota_credito(session, token.cid, token.uid, data)
     return {"id": nc.id, "numero_nota": nc.numero_nota, "numero_control": nc.numero_control}
+
+
+@router.get("/facturas/{factura_id}/pdf")
+async def descargar_factura_pdf(
+    factura_id: Any,
+    token: Annotated[TokenData, Depends(get_token_auth)],
+    session: Annotated[AsyncSession, Depends(sesion_tenant)],
+) -> Any:
+    from fastapi import Response
+
+    pdf_bytes = await VentasService.obtener_factura_pdf(session, token.cid, factura_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=factura_{factura_id}.pdf"},
+    )

@@ -1,0 +1,35 @@
+{
+    admin off
+}
+
+# Dominio / nodo de Tailscale (configurable por variable de entorno o archivo)
+{$TAILSCALE_DOMAIN:galaxy-erp.tailscale.net} {
+    # Certificados provistos por Tailscale (o let's encrypt si es público)
+    tls /certs/galaxy.crt /certs/galaxy.key
+
+    # Compresión moderna
+    encode zstd gzip
+
+    # Proxy a la API FastAPI
+    handle /api/* {
+        reverse_proxy api:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Servir archivos estáticos del cliente Web (SPA)
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Logs estructurados en JSON hacia stdout (journald)
+    log {
+        output stdout
+        format json
+    }
+}

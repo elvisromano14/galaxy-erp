@@ -1,0 +1,26 @@
+[Unit]
+Description=Galaxy ERP - Redis
+After=network-online.target
+
+[Container]
+Image=docker.io/library/redis:7-alpine
+ContainerName=galaxy-redis
+Network=erp-net.network
+EnvironmentFile=%h/galaxy-erp/deploy/env/redis.env
+
+# Contraseña inyectada desde variable de entorno para evitar plain text en flags
+Exec=sh -c 'redis-server \
+  --appendonly yes \
+  --maxmemory 128mb \
+  --maxmemory-policy noeviction \
+  --requirepass "${REDIS_PASSWORD}"'
+
+Volume=erp-redis-data:/data:Z
+PublishPort=127.0.0.1:6379:6379
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

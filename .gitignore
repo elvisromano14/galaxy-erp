@@ -21,10 +21,10 @@ wheels/
 *.egg
 
 # Virtual environments
-.venv/
-env/
-venv/
-ENV/
+/.venv/
+/env/
+/venv/
+/ENV/
 
 # Testing and linters
 .pytest_cache/

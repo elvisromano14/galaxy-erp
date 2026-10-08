@@ -1,0 +1,23 @@
+[Unit]
+Description=Galaxy ERP - Caddy Reverse Proxy + TLS
+After=network-online.target api.service
+
+[Container]
+Image=docker.io/library/caddy:2-alpine
+ContainerName=galaxy-caddy
+Network=erp-net.network
+
+# Montar: Caddyfile, certificados Tailscale y build web Flutter
+Volume=%h/galaxy-erp/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=%h/galaxy-erp/deploy/certs:/certs:ro,Z
+Volume=%h/galaxy-erp/deploy/web:/srv/web:ro,Z
+Volume=erp-caddy-data:/data:Z
+
+PublishPort=443:443
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

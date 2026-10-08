@@ -2,7 +2,7 @@
 
 > **Documento de seguimiento de ejecución**  
 > Última actualización: 08 de Octubre de 2026  
-> Fase actual en progreso: **Fase 0 - Plataforma y Arquitectura Base** (Avanzada)
+> Fase actual en progreso: **Fase 1 - Administración** (Fase 0 Completada 100%)
 
 ---
 
@@ -87,53 +87,60 @@
   - Aislamiento estricto: tokens de cliente A rechazados en cliente B.
   - Suspensión de cuenta: tenant suspendido recibe 403 `TENANT_SUSPENDIDO` de inmediato en peticiones de negocio.
 
+### 1.8 Despliegue, Operación y Resiliencia (Cierre de Fase 0)
+- [x] Contenedores Quadlet systemd configurados en [deploy/quadlet/](deploy/quadlet/):
+  - `redis.container`: Redis 7 alpine con `maxmemory 128mb` y `noeviction`.
+  - `api.container`: FastAPI Uvicorn con 2 workers y soporte proxy-headers.
+  - `worker.container`: Proceso background para arq/planificador de tareas en segundo plano ([api/app/workers/main.py](api/app/workers/main.py)).
+  - `caddy.container`: Caddy 2 con terminación TLS, compresión zstd/gzip y proxy a la API ([deploy/caddy/Caddyfile](deploy/caddy/Caddyfile)).
+  - `erp-net.network`: Red interna aislada de Podman.
+- [x] Scripts de ciclo de vida de respaldos en [deploy/backup/](deploy/backup/):
+  - [respaldo_diario.sh](deploy/backup/respaldo_diario.sh): Respaldo automático de `erp_control` y todas las bases cliente vía `pg_dump -Fc`, cifrado con GPG, retención de 3 días y soporte `rclone`.
+  - [restaurar.sh](deploy/backup/restaurar.sh): Desempaquetado/descifrado y restauración atómica probada con `pg_restore`, reaplicación de permisos DML para `erp_app` y auditoría append-only.
+- [x] Orquestación de migraciones con `erpctl migrar`:
+  - [api/app/control/migraciones.py](api/app/control/migraciones.py): Migración masiva con soporte canario (falla segura que detiene la cola si el canario falla), registro en `tenant_job` y actualización de `schema_rev`.
+- [x] Diagnóstico de salud con `erpctl salud`:
+  - Inspección en vivo de disco (GB totales/libres y porcentaje), memoria RAM real disponible, conectividad con PostgreSQL y Redis.
+- [x] Plantilla segura de variables de entorno [.env.example](.env.example) y [.gitignore](.gitignore) blindado contra fugas de credenciales.
+
 ---
 
 ## 2. Lo Pendiente por Realizar
 
-### 2.1 Cierre de la Fase 0 (Plataforma y Aislamiento) - *Último Bloque*
-1. **Infraestructura y Despliegue con Podman (Quadlet):**
-   - Configurar archivos Quadlet de systemd en `deploy/quadlet/`:
-     - `redis.container`: Redis 7 alpine con `maxmemory 128mb` y `maxmemory-policy noeviction`.
-     - `api.container`: Contenedor de la API FastAPI con 2 workers.
-     - `worker.container`: Contenedor del worker y planificador de tareas (arq / apscheduler).
-     - `caddy.container`: Caddy 2 con proxy a la API y servicio de archivos estáticos.
-2. **Scripts de Respaldos Diarios:**
-   - Script `deploy/backup/respaldo_diario.sh`:
-     - Itera sobre `erpctl tenant listar --solo-db` y `erp_control`.
-     - Genera `pg_dump -Fc` por cliente.
-     - Cifrado con GPG.
-     - Sincronización remota con `rclone`.
-     - Retención local de 3 días para proteger el espacio en disco de 20 GB.
-3. **Comando `erpctl migrar --todos`:**
-   - Orquestador de migraciones Alembic sobre todos los clientes (primero el canario, luego el resto, registrando en `tenant_job`).
+### 2.1 Fase 1: Administración (En Progreso)
+> **Decisiones Arquitectónicas Definidas por el Usuario:**
+> - **Modelo de Despliegue:** SaaS multi-tenant alojado en VPS central.
+> - **Retenciones:** Flexibles y configurables por cliente y proveedor (el cliente decide quién retiene IVA/ISLR y quién no).
+> - **Almacenamiento:** Sin restricción artificial por volumen de disco.
+
+**Tareas en Desarrollo:**
+1. **Modelos y Migraciones del Catálogo de Negocio:**
+   - [ ] Empresa (Razón social, RIF, dirección fiscal, teléfono, logo, moneda base, retenciones por defecto).
+   - [ ] Depósitos / Almacenes (`Warehouse`).
+   - [ ] Categorías de productos (árbol jerárquico).
+   - [ ] Catálogo de Productos y Servicios (código, nombre, tipo, unidad de medida, alícuota IVA, costo estándar, precios bimoneda).
+   - [ ] Proveedores (RIF, nombre, agente de retención IVA/ISLR sí/no, porcentaje personalizado de retención).
+   - [ ] Clientes (Cédula/RIF, nombre, dirección, contribuyente especial sí/no, retención personalizada, lista de precio asignada).
+   - [ ] Zonas y Vendedores.
+   - [ ] Instrumentos de pago (Efectivo VES/USD, Transferencia, Pago Móvil, Punto de venta, Zelle, etc.).
+   - [ ] Tipos de operación y Correlativos de documentos.
+2. **Servicio de Monedas y Tasas BCV:**
+   - [ ] Modelo `TasaCambio` (moneda origen, moneda destino, tasa con 6 decimales, fecha de vigencia, fuente BCV/manual).
+   - [ ] Endpoint y tarea programada para consulta y registro de la tasa oficial del BCV.
+3. **Importación Masiva:**
+   - [ ] Parser de plantillas Excel (`.xlsx`) con validaciones de tipos, duplicados y reglas de negocio.
+4. **API Endpoints & Permisos:**
+   - [ ] Routers FastAPI para cada catálogo con auditoría y verificación de permisos por rol.
+5. **Frontend Flutter (Kite Shell):**
+   - [ ] Estructura base de la aplicación de escritorio y web, autenticación, selector de empresa y pantallas de administración.
 
 ---
 
 ### 2.2 Fases Siguientes del Roadmap
 
-* **Fase 1: Administración**
-  - CRUD de empresas, depósitos, categorías, productos, proveedores, clientes, zonas, vendedores, instrumentos de pago.
-  - Carga de tasas de cambio BCV (manual y automática).
-  - Importación masiva de productos desde plantillas Excel.
-* **Fase 2: Inventario**
-  - Kardex inmutable (`stock_movement`) y saldos (`stock_balance`).
-  - Cargos, descargos, traslados entre depósitos y ajustes con motivo obligatorio.
-  - Costo estándar, variación de compras, mínimos y máximos, listas de precios.
-* **Fase 3: Compras y Ventas**
-  - Ciclo de compras: cotización → orden → compra → devolución → notas de entrega.
-  - Ciclo de ventas: cotización → presupuesto → pedido → factura → nota de crédito.
-  - Integración transaccional con inventario y cuentas por cobrar/pagar.
-* **Fase 4: Finanzas y Bancos**
-  - Cuentas bancarias, beneficiarios, transacciones.
-  - Cuentas por cobrar (CxC) y por pagar (CxP), aplicación de cobros y pagos, antigüedad de saldos.
-  - Conciliación bancaria.
-* **Fase 5: Impuestos y Reportes Fiscales**
-  - Motor tributario venezolano: IVA, retenciones IVA/ISLR, IGTF.
-  - Generación de libros de compras y ventas según providencias SENIAT.
-  - Motor de reportes declarativo con exportación en PDF, XLSX y CSV.
-* **Fase 6 & 7: Sincronización y App Móvil de Campo**
-  - *(Pospuesto por solicitud expresa: se abordará en su respectiva fase)*.
-* **Fase 8: Piloto, Pruebas de Carga y Endurecimiento Operativo**
-  - Pruebas de concurrencia y carga con k6 o Locust.
-  - Simulacros de restauración y recuperación ante desastres.
+* **Fase 2: Inventario** (Kardex inmutable, saldos, movimientos atómicos, traslados, ajustes con motivo).
+* **Fase 3: Compras y Ventas** (Ciclo de cotizaciones, órdenes, compras, pedidos, facturas, notas de crédito/entrega).
+* **Fase 4: Finanzas y Bancos** (Cuentas bancarias, CxC, CxP, aplicación de cobros/pagos bimoneda, conciliación).
+* **Fase 5: Impuestos y Reportes Fiscales** (Libros SENIAT, retenciones IVA/ISLR, IGTF, exportación PDF/Excel).
+* **Fase 6 & 7: Sincronización y App Móvil de Campo** (Modo offline para vendedores).
+* **Fase 8: Piloto, Pruebas de Carga y Endurecimiento Operativo**.

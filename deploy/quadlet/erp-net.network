@@ -1,0 +1,4 @@
+# Red interna compartida por todos los contenedores Galaxy ERP
+[Network]
+Driver=bridge
+Label=app=galaxy-erp

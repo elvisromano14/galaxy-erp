@@ -1,0 +1,32 @@
+[Unit]
+Description=Galaxy ERP - API FastAPI
+After=network-online.target redis.service
+
+[Container]
+Image=localhost/galaxy-api:latest
+ContainerName=galaxy-api
+Network=erp-net.network
+EnvironmentFile=%h/galaxy-erp/deploy/env/api.env
+
+# 2 workers Uvicorn con proxy-headers para Caddy
+Exec=uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --workers 2 \
+  --proxy-headers \
+  --forwarded-allow-ips='*'
+
+Volume=erp-files:/data/files:Z
+PublishPort=127.0.0.1:8000:8000
+
+HealthCmd=curl -fsS http://localhost:8000/salud
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

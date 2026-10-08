@@ -1,0 +1,21 @@
+[Unit]
+Description=Galaxy ERP - Worker y Planificador de Tareas
+After=network-online.target redis.service
+
+[Container]
+Image=localhost/galaxy-api:latest
+ContainerName=galaxy-worker
+Network=erp-net.network
+EnvironmentFile=%h/galaxy-erp/deploy/env/api.env
+
+# Un solo contenedor ejecuta el planificador (Sección 22.2 del plan)
+Exec=python -m app.workers.main
+
+Volume=erp-files:/data/files:Z
+
+[Service]
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

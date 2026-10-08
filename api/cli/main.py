@@ -180,11 +180,121 @@ def tenant_activar(
     asyncio.run(_ejecutar())
 
 
+@app.command("migrar")
+def migrar(
+    todos: bool = typer.Option(
+        False, "--todos", help="Migrar todos los clientes activos/suspendidos"
+    ),
+    slug: str | None = typer.Option(None, "--slug", help="Migrar únicamente el cliente indicado"),
+) -> None:
+    """Aplica migraciones Alembic a clientes. Canario primero. Falla segura."""
+    from app.control.migraciones import migrar_todos
+
+    if not todos and not slug:
+        console.print("[red]Debes indicar --todos o --slug <slug>.[/red]")
+        raise typer.Exit(code=1)
+
+    asyncio.run(migrar_todos(solo_slug=slug))
+
+
 @app.command("salud")
 def salud() -> None:
-    """Verifica estado de disco, memoria y servicios."""
-    console.print("[cyan]Verificando estado del servidor y servicios...[/cyan]")
+    """Verifica estado de disco, memoria y conectividad de servicios."""
+    import shutil
+
+    from redis.asyncio import Redis
+    from sqlalchemy import text
+
+    console.print("[cyan]Verificando estado del servidor y servicios...[/cyan]\n")
+
+    tabla = Table(title="Estado del Sistema - Galaxy ERP")
+    tabla.add_column("Componente", style="bold")
+    tabla.add_column("Detalle")
+    tabla.add_column("Estado")
+
+    # 1. Espacio en disco
+    total, used, free = shutil.disk_usage("/")
+    total_gb = total / (1024**3)
+    free_gb = free / (1024**3)
+    used_pct = (used / total) * 100
+    color_disco = "green" if used_pct < 80 else ("yellow" if used_pct < 90 else "red")
+    tabla.add_row(
+        "Almacenamiento (Disco /)",
+        f"{used_pct:.1f}% usado (Libre: {free_gb:.1f} GB de {total_gb:.1f} GB)",
+        f"[{color_disco}]OK[/{color_disco}]"
+        if used_pct < 90
+        else f"[{color_disco}]ALERTA[/{color_disco}]",
+    )
+
+    # 2. Memoria RAM
+    mem_detalle = "N/A"
+    mem_estado = "[green]OK[/green]"
+    try:
+        with open("/proc/meminfo") as f:
+            lines = f.readlines()
+        mem_info = {}
+        for line in lines:
+            parts = line.split(":")
+            if len(parts) == 2:
+                mem_info[parts[0].strip()] = parts[1].strip()
+        total_kb = int(mem_info.get("MemTotal", "0 kB").split()[0])
+        avail_kb = int(mem_info.get("MemAvailable", "0 kB").split()[0])
+        if total_kb > 0:
+            total_mb = total_kb / 1024
+            avail_mb = avail_kb / 1024
+            used_pct_mem = ((total_kb - avail_kb) / total_kb) * 100
+            mem_detalle = (
+                f"{used_pct_mem:.1f}% usada (Disponible: {avail_mb:.0f} MB de {total_mb:.0f} MB)"
+            )
+            mem_estado = "[green]OK[/green]" if used_pct_mem < 85 else "[yellow]ALTO[/yellow]"
+    except Exception:
+        mem_detalle = "No disponible"
+
+    tabla.add_row("Memoria RAM", mem_detalle, mem_estado)
+
+    # 3. Base de Datos Control y Redis
+    async def _verificar_servicios() -> tuple[bool, str, bool, str]:
+        pg_ok, pg_err = False, ""
+        try:
+            from app.control.db import get_control_owner_engine
+
+            engine = get_control_owner_engine()
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            pg_ok = True
+        except Exception as exc:
+            pg_err = str(exc)
+
+        redis_ok, redis_err = False, ""
+        try:
+            from app.core.config import settings
+
+            r = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            await r.ping()
+            await r.aclose()
+            redis_ok = True
+        except Exception as exc:
+            redis_err = str(exc)
+
+        return pg_ok, pg_err, redis_ok, redis_err
+
+    pg_ok, pg_err, redis_ok, redis_err = asyncio.run(_verificar_servicios())
+
+    tabla.add_row(
+        "PostgreSQL (Control DB)",
+        "Conexión activa a erp_control" if pg_ok else f"Fallo: {pg_err[:50]}...",
+        "[green]OK[/green]" if pg_ok else "[red]DESCONECTADO[/red]",
+    )
+
+    tabla.add_row(
+        "Redis",
+        "Conexión y PING exitoso" if redis_ok else f"Fallo: {redis_err[:50]}...",
+        "[green]OK[/green]" if redis_ok else "[yellow]DESCONECTADO[/yellow]",
+    )
+
+    console.print(tabla)
 
 
 if __name__ == "__main__":
     app()
+

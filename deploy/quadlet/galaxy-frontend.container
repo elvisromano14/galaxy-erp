@@ -1,0 +1,25 @@
+# Quadlet (Podman >= 4.4): se instala en ~/.config/containers/systemd/
+# y genera el servicio de usuario galaxy-frontend.service.
+[Unit]
+Description=Galaxy ERP Frontend (Flutter Web + Nginx)
+Wants=network-online.target galaxy-api.service
+After=network-online.target galaxy-api.service
+
+[Container]
+ContainerName=galaxy-frontend
+Image=localhost/galaxy-frontend:latest
+Network=host
+LogDriver=journald
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8090/index.html
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=10s
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target

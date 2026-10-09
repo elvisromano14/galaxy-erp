@@ -68,3 +68,15 @@ podman-stop:
 
 podman-logs:
 	podman logs -f galaxy-api
+
+frontend-build:
+	podman build -t galaxy-frontend:latest -f mobile/Containerfile mobile/
+
+frontend-run:
+	podman run -d --name galaxy-frontend --restart always --network host galaxy-frontend:latest
+
+frontend-stop:
+	podman rm -f galaxy-frontend
+
+frontend-logs:
+	podman logs -f galaxy-frontend

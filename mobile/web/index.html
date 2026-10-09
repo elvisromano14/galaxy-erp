@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Galaxy ERP - Sistema de Gestión Empresarial">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Galaxy ERP">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <title>Galaxy ERP</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      background-color: #0f172a;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: white;
+    }
+    .loading {
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border-left-color: #3b82f6;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading-indicator">
+    <div class="spinner"></div>
+    <div style="font-size: 1.1rem; font-weight: 500;">Cargando Galaxy ERP...</div>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

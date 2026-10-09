@@ -1,0 +1,12 @@
+FROM docker.io/library/nginx:alpine
+
+# Copiar configuración optimizada para SPA y proxy de la API
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copiar distribución estática compilada de Flutter Web
+COPY web /usr/share/nginx/html
+
+EXPOSE 8090
+
+STOPSIGNAL SIGQUIT
+CMD ["nginx", "-g", "daemon off;"]

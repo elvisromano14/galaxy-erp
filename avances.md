@@ -142,10 +142,20 @@
   - Middleware `MaxBodySizeMiddleware` para prevenir ataques de agotamiento de memoria HTTP/POST masivo (> 10MB con error `413 Payload Too Large`).
   - Middleware `CORSMiddleware` estricto con dominios configurables por entorno (`ALLOWED_ORIGINS`).
   - Rate Limiting anti-fuerza bruta en endpoint `/api/v1/auth/login` respaldado en Redis con ventana deslizante y fail-open seguro.
-- [x] **Endurecimiento de Contenedores y Proxy Inverso:**
-  - `deploy/caddy/Caddyfile`: Bloqueo de métodos HTTP no permitidos, bloqueo de archivos y rutas ocultas (`.git`, `.env`), cabeceras HSTS y TLS 1.2/1.3 para nodo privado de Tailscale.
-  - `deploy/quadlet/api.container`: `NoNewPrivileges=true`, `DropCapability=ALL`, `AddCapability=CHOWN SETUID SETGID` para evitar cualquier escalada de privilegios en el VPS.
-  - `deploy/scripts/setup_vps.sh`: Script integral de instalación y puesta en marcha desatendida en el VPS.
+### 2.11 Puesta en Marcha Operativa en el VPS en la Nube
+- [x] **Acceso y Configuración del VPS (`104.251.218.86` / `galaxy-suite.systems.com`):**
+  - Conexión SSH segura establecida vía clave criptográfica Ed25519 registrada en `~/.ssh/config` (alias `galaxy-vps`).
+  - Roles PostgreSQL configurados con permisos de seguridad en el VPS: `erp_owner` (DDL/migraciones) y `erp_app` (DML/runtime).
+  - Base de datos `erp_control` creada e inicializada con Alembic.
+  - Base de datos y tenant canario permanente `test` (`erp_c_test`) sembrada con catálogos completos (almacenes, productos, existencias, clientes, retenciones SENIAT, bancos).
+- [x] **Contenedores Podman Operativos en VPS:**
+  - `galaxy-redis`: Servidor Redis 7 con persistencia AOF en `127.0.0.1:6379`.
+  - `galaxy-api`: Backend FastAPI compilado con imagen OCI Python 3.14 (`galaxy-api:latest`) corriendo con reinicio automático (`--restart always`).
+  - Script de validación local en VPS (`scripts/probar_conexion.sh`) ejecutado con **100% de éxito**: healthcheck `/salud`, login JWT de `admin` en `test`, `/api/v1/auth/me`, productos y clientes.
+- [x] **Exposición Privada y Segura por Tailscale:**
+  - Configurado `tailscale serve --bg --https=8000 http://127.0.0.1:8000`.
+  - Acceso privado y exclusivo dentro del Tailnet en:
+    `https://prod-cloud.tailf30e87.ts.net:8000/docs` con cifrado HTTPS automático.
 
 ---
 
@@ -165,7 +175,7 @@
 
 ## 4. Próximos Pasos (Fase 8: Piloto y Producción)
 
-* **Piloto y Pruebas de Carga (k6 / Locust):** Simulación de estrés con usuarios concurrentes.
-* **Compilación de Producción de Flutter:** Generar binarios Web (`flutter build web`) y APK Android para vendedores de campo.
-* **Ejecutar `deploy/scripts/setup_vps.sh` en el VPS con Tailscale**.
+* **Piloto y Pruebas de Carga (k6 / Locust):** Simulación de estrés con usuarios concurrentes sobre el VPS.
+* **Cliente Móvil Flutter:** Probar la conexión de la app móvil apuntando a la API en el VPS (`https://prod-cloud.tailf30e87.ts.net:8000/api/v1`).
+
 
